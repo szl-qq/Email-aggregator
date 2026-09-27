@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>邮箱聚合助手</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #e3e6ea;
+    --text: #1f2329;
+    --text-2: #6b7280;
+    --text-3: #9ca3af;
+    --accent: #3b82f6;
+    --accent-weak: #eff4ff;
+    --danger: #ef4444;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+  button { font-family: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; }
+
+  /* 布局 */
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  .topbar { display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .topbar .logo { font-size: 17px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .topbar .logo .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .search-box { flex: 1; max-width: 420px; position: relative; }
+  .search-box input { width: 100%; padding: 8px 12px 8px 34px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; background: var(--bg); }
+  .search-box svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); }
+  .topbar .spacer { flex: 1; }
+  .main { flex: 1; display: flex; min-height: 0; }
+
+  /* 左侧账号栏 */
+  .sidebar { width: 250px; min-width: 250px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .sidebar .head { padding: 14px 16px 8px; font-size: 12px; color: var(--text-3); font-weight: 600; }
+  .sidebar .accounts { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  .acc-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; user-select: none; transition: background .12s; }
+  .acc-item:hover { background: #f3f4f6; }
+  .acc-item.active { background: var(--accent-weak); }
+  .acc-item .avatar { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; font-size: 14px; flex-shrink: 0; }
+  .acc-item .info { flex: 1; min-width: 0; }
+  .acc-item .info .name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acc-item .info .mail { font-size: 11.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acc-item .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .acc-item .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .acc-item .status-dot.online { background: #22c55e; }
+  .acc-item .status-dot.offline { background: #d1d5db; }
+  .acc-item .status-dot.error { background: var(--danger); }
+  .acc-item .ops { display: none; align-items: center; gap: 2px; }
+  .acc-item:hover .ops { display: flex; }
+  .icon-btn { width: 24px; height: 24px; border: none; background: transparent; border-radius: 6px; color: var(--text-2); display: flex; align-items: center; justify-content: center; }
+  .icon-btn:hover { background: #e5e7eb; color: var(--text); }
+  .icon-btn.danger:hover { color: var(--danger); background: #fee2e2; }
+  .sidebar .add-acc { margin: 10px; padding: 9px; border: 1px dashed #c7cdd6; border-radius: 8px; background: transparent; color: var(--text-2); font-size: 13px; }
+  .sidebar .add-acc:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+
+  /* 中间邮件列表 */
+  .mail-list { width: 400px; min-width: 340px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .mail-list .filters { display: flex; gap: 4px; padding: 10px 14px 4px; }
+  .mail-list .filters button { border: none; background: transparent; padding: 6px 12px; border-radius: 20px; font-size: 12.5px; color: var(--text-2); }
+  .mail-list .filters button.active { background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+  .mail-list .count { padding: 2px 14px 8px; font-size: 11.5px; color: var(--text-3); }
+  .mail-items { flex: 1; overflow-y: auto; }
+  .mail-item { padding: 11px 14px; border-bottom: 1px solid #f0f1f4; cursor: pointer; position: relative; }
+  .mail-item:hover { background: #fafbfc; }
+  .mail-item.active { background: var(--accent-weak); }
+  .mail-item.unread .mi-subject { font-weight: 700; }
+  .mail-item.unread .mi-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: 6px; }
+  .mi-top { display: flex; align-items: center; justify-content: space-between; }
+  .mi-sender { font-size: 13px; color: var(--text); display: flex; align-items: center; min-width: 0; }
+  .mi-sender .sn { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mi-time { font-size: 11px; color: var(--text-3); flex-shrink: 0; margin-left: 8px; }
+  .mi-subject { font-size: 13.5px; margin-top: 4px; color: var(--text); display: flex; align-items: center; }
+  .mi-preview { font-size: 12px; color: var(--text-2); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mi-star { position: absolute; right: 14px; bottom: 10px; color: #eab308; font-size: 13px; }
+  .mi-acc-tag { display: inline-block; font-size: 10.5px; color: var(--accent); background: var(--accent-weak); padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+  .pager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
+  .pager button { border: 1px solid var(--border); background: var(--panel); padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+  .pager button:hover { border-color: var(--accent); color: var(--accent); }
+  .pager button:disabled { opacity: .4; cursor: default; }
+  .empty { padding: 40px 20px; text-align: center; color: var(--text-3); font-size: 13px; }
+
+  /* 右侧详情 */
+  .detail { flex: 1; background: var(--panel); overflow-y: auto; }
+  .detail .inner { max-width: 760px; margin: 0 auto; padding: 26px 30px; }
+  .d-subject { font-size: 21px; font-weight: 700; line-height: 1.4; }
+  .d-meta { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .d-avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; flex-shrink: 0; }
+  .d-who { flex: 1; min-width: 0; }
+  .d-who .n { font-size: 14px; font-weight: 600; }
+  .d-who .e { font-size: 12px; color: var(--text-2); }
+  .d-time { font-size: 12px; color: var(--text-3); }
+  .d-body { margin-top: 18px; font-size: 14px; line-height: 1.8; color: var(--text); }
+  .d-body iframe { width: 100%; border: none; }
+  .d-placeholder { padding: 80px 40px; text-align: center; color: var(--text-3); font-size: 14px; }
+  .d-loading { padding: 60px; text-align: center; color: var(--text-3); }
+
+  /* 模态框 */
+  .modal-mask { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { width: 560px; max-width: 94vw; max-height: 90vh; background: var(--panel); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+  .modal .m-head { padding: 18px 22px 0; display: flex; align-items: center; justify-content: space-between; }
+  .modal .m-head h3 { font-size: 16px; }
+  .modal .m-body { padding: 14px 22px 22px; overflow-y: auto; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12.5px; color: var(--text-2); margin-bottom: 5px; font-weight: 600; }
+  .field input, .field select { width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; }
+  .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .proto-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .proto-options button { padding: 10px 0; border: 1.5px solid var(--border); border-radius: 8px; background: var(--panel); font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .proto-options button.active { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+  .hint { font-size: 11.5px; color: var(--text-3); margin-top: 4px; }
+  .m-actions { display: flex; gap: 10px; justify-content: flex-end; padding: 0 22px 20px; }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; border: 1px solid var(--border); background: var(--panel); }
+  .btn:hover { border-color: #c7cdd6; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn-primary:hover { background: #2f6fe4; }
+  .btn-primary:disabled { opacity: .55; cursor: default; }
+  .btn-test { background: var(--panel); color: var(--accent); border-color: var(--accent); }
+  .test-result { margin: 8px 0 4px; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; }
+  .test-result.ok { background: #ecfdf5; color: #059669; }
+  .test-result.fail { background: #fef2f2; color: var(--danger); }
+
+  /* Toast */
+  .toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 200; padding: 10px 18px; border-radius: 10px; font-size: 13px; color: #fff; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(2px); }
+  .toast.ok { background: #059669; }
+  .toast.err { background: var(--danger); }
+  .toast.info { background: #1f2937; }
+
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: sp .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="logo"><span class="dot"></span>邮箱聚合助手</div>
+    <div class="search-box">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" placeholder="搜索邮件..." />
+    </div>
+    <div class="spacer"></div>
+    <div style="font-size:12px;color:var(--text-3)">本地运行 · 数据存本机</div>
+  </div>
+  <div class="main">
+    <!-- 左侧账号栏 -->
+    <aside class="sidebar">
+      <div class="head">邮箱账号</div>
+      <div class="accounts" id="accountList"></div>
+      <button class="add-acc" id="btnAdd">＋ 添加账号</button>
+    </aside>
+    <!-- 中间邮件列表 -->
+    <section class="mail-list">
+      <div class="filters">
+        <button data-f="all" class="active">全部</button>
+        <button data-f="unread">未读</button>
+        <button data-f="starred">已加星</button>
+      </div>
+      <div class="count" id="mailCount"></div>
+      <div class="mail-items" id="mailItems"></div>
+      <div class="pager">
+        <button id="btnPrev">上一页</button>
+        <span id="pageInfo">第 1 页</span>
+        <button id="btnNext">下一页</button>
+      </div>
+    </section>
+    <!-- 右侧详情 -->
+    <section class="detail" id="detailPane"><div class="d-placeholder">请选择一封邮件查看详情</div></section>
+  </div>
+</div>
+
+<!-- 添加/编辑账号模态 -->
+<div class="modal-mask" id="modalMask" style="display:none">
+  <div class="modal">
+    <div class="m-head"><h3 id="modalTitle">添加账号</h3><button class="icon-btn" id="btnCloseModal" style="width:30px;height:30px;font-size:16px">✕</button></div>
+    <div class="m-body">
+      <div class="field">
+        <label>协议</label>
+        <div class="proto-options" id="protoOptions">
+          <button data-p="imap" class="active">IMAP</button>
+          <button data-p="pop3">POP3</button>
+          <button data-p="smtp">SMTP</button>
+          <button data-p="exchange">Exchange</button>
+        </div>
+        <div class="hint" id="protoHint">IMAP 支持最完整（QQ/163/Gmail/Outlook 通用），推荐首选。</div>
+      </div>
+      <div class="field">
+        <label>显示名称</label>
+        <input id="fName" placeholder="例如：我的 QQ 邮箱" />
+      </div>
+      <div class="field">
+        <label>邮箱地址</label>
+        <input id="fEmail" placeholder="you@example.com" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>服务器地址</label>
+          <input id="fHost" placeholder="imap.qq.com" />
+        </div>
+        <div class="field">
+          <label>端口</label>
+          <input id="fPort" type="number" placeholder="993" />
+        </div>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="fSecure" checked style="width:auto" /> 使用 SSL/TLS 加密连接
+        </label>
+      </div>
+      <div class="field">
+        <label>用户名</label>
+        <input id="fUsername" placeholder="通常与邮箱地址相同" />
+      </div>
+      <div class="field">
+        <label>授权码 / 密码</label>
+        <input id="fPassword" type="password" placeholder="邮箱授权码或密码（不会明文保存）" />
+        <div class="hint">QQ/163 邮箱请在网页端开启 IMAP/SMTP 服务后使用「授权码」。</div>
+      </div>
+      <div id="testResult"></div>
+    </div>
+    <div class="m-actions">
+      <button class="btn btn-test" id="btnTest">测试连接</button>
+      <button class="btn" id="btnCancel">取消</button>
+      <button class="btn btn-primary" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ========== 状态 ========== */
+const state = {
+  accounts: [],
+  currentAccountId: null,   // null = 所有账号
+  filter: 'all',            // all / unread / starred
+  keyword: '',
+  page: 1,
+  pageSize: 20,
+  total: 0,
+  editingId: null,          // 编辑中的账号 id（null 为新增）
+  protocol: 'imap',
+};
+
+const AVATAR_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'];
+
+/* ========== 工具 ========== */
+function $(id) { return document.getElementById(id); }
+function toast(msg, type = 'info') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = 'toast', 2200);
+}
+async function api(method, url, body) {
+  const opt = { method, headers: {} };
+  if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+  const resp = await fetch(url, opt);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.message || `请求失败(${resp.status})`);
+  return data;
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function timeFmt(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return d.toTimeString().slice(0, 5);
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return '昨天';
+  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth()+1}月${d.getDate()}日`;
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+}
+function colorOf(str) {
+  let h = 0; for (const c of String(str)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+/* ========== 账号 ========== */
+async function loadAccounts() {
+  try {
+    const data = await api('GET', '/api/accounts');
+    state.accounts = data.items || [];
+    renderAccounts();
+    await loadMessages();
+  } catch (e) { toast('加载账号失败：' + e.message, 'err'); }
+}
+function renderAccounts() {
+  const box = $('accountList');
+  const totalUnread = state.accounts.reduce((s, a) => s + (a.unreadCount || 0), 0);
+  box.innerHTML = '';
+  // 全部
+  const allEl = document.createElement('div');
+  allEl.className = 'acc-item' + (state.currentAccountId === null ? ' active' : '');
+  allEl.innerHTML = `
+    <div class="avatar" style="background:#111827">⋮</div>
+    <div class="info"><div class="name">所有邮箱</div><div class="mail">${state.accounts.length} 个账号</div></div>
+    ${totalUnread ? `<div class="badge">${totalUnread}</div>` : ''}`;
+  allEl.onclick = () => { state.currentAccountId = null; state.page = 1; renderAccounts(); loadMessages(); };
+  box.appendChild(allEl);
+
+  for (const a of state.accounts) {
+    const el = document.createElement('div');
+    el.className = 'acc-item' + (state.currentAccountId === a.id ? ' active' : '');
+    el.innerHTML = `
+      <div class="avatar" style="background:${colorOf(a.emailAddress)}">${esc((a.name || '?').slice(0,1).toUpperCase())}</div>
+      <div class="info"><div class="name">${esc(a.name)}</div><div class="mail">${esc(a.emailAddress)}</div></div>
+      <span class="status-dot ${a.status === 'online' ? 'online' : a.status === 'error' ? 'error' : 'offline'}" title="状态: ${esc(a.status || 'offline')}"></span>
+      ${a.unreadCount ? `<div class="badge">${a.unreadCount}</div>` : ''}
+      <div class="ops">
+        <button class="icon-btn" title="同步邮件" data-act="sync">↻</button>
+        <button class="icon-btn" title="编辑" data-act="edit">✎</button>
+        <button class="icon-btn danger" title="删除" data-act="del">🗑</button>
+      </div>`;
+    el.onclick = (ev) => {
+      if (ev.target.closest('.ops')) return;
+      state.currentAccountId = a.id; state.page = 1;
+      renderAccounts(); loadMessages();
+    };
+    const ops = el.querySelector('.ops');
+    ops.onclick = async (ev) => {
+      const act = ev.target.dataset.act;
+      if (!act) return;
+      ev.stopPropagation();
+      if (act === 'sync') { await doSync(a.id); }
+      else if (act === 'edit') { openModal(a); }
+      else if (act === 'del') { await doDelete(a.id, a.name); }
+    };
+    box.appendChild(el);
+  }
+}
+async function doSync(accountId) {
+  toast('正在同步邮件，请稍候…', 'info');
+  try {
+    const r = await api('POST', `/api/accounts/${accountId}/sync`);
+    toast(`同步完成：共 ${r.syncedCount} 封，新增 ${r.newCount} 封`, 'ok');
+  } catch (e) {
+    toast('同步失败：' + e.message, 'err');
+  }
+  loadAccounts();
+}
+
+/* ========== 邮件 ========== */
+async function loadMessages() {
+  const q = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
+  if (state.currentAccountId) q.set('accountId', state.currentAccountId);
+  if (state.filter !== 'all') q.set(state.filter === 'unread' ? 'isRead' : 'isStarred', state.filter === 'unread' ? 'false' : 'true');
+  if (state.keyword) q.set('keyword', state.keyword);
+  try {
+    const data = await api('GET', '/api/messages?' + q.toString());
+    state.total = data.total;
+    renderMessages(data.items || []);
+  } catch (e) { toast('加载邮件失败：' + e.message, 'err'); }
+}
+function renderMessages(items) {
+  const box = $('mailItems');
+  $('mailCount').textContent = `共 ${state.total} 封邮件`;
+  $('pageInfo').textContent = `第 ${state.page} 页 / 共 ${Math.max(1, Math.ceil(state.total / state.pageSize))} 页`;
+  $('btnPrev').disabled = state.page <= 1;
+  $('btnNext').disabled = state.page >= Math.max(1, Math.ceil(state.total / state.pageSize));
+  if (!items.length) { box.innerHTML = '<div class="empty">暂无邮件' + (state.currentAccountId ? '' : '（先同步账号，或点击左侧账号旁的 ↻ 同步）') + '</div>'; return; }
+  box.innerHTML = '';
+  for (const m of items) {
+    const acc = state.accounts.find(a => a.id === m.accountId);
+    const el = document.createElement('div');
+    el.className = 'mail-item' + (m.isRead ? '' : ' unread');
+    el.innerHTML = `
+      <div class="mi-top">
+        <div class="mi-sender"><span class="sn">${esc(m.senderName || m.senderEmail || '(未知发件人)')}</span>
+          ${acc ? `<span class="mi-acc-tag">${esc(acc.name)}</span>` : ''}</div>
+        <span class="mi-time">${timeFmt(m.dateReceived)}</span>
+      </div>
+      <div class="mi-subject">${m.isStarred ? '<span class="mi-star" style="position:static">★</span>' : ''}<span class="mi-dot"></span>${esc(m.subject || '(无主题)')}</div>
+      <div class="mi-preview">${esc(m.preview || '')}</div>`;
+    el.onclick = () => { openDetail(m.id); };
+    box.appendChild(el);
+  }
+}
+
+/* ========== 详情 ========== */
+async function openDetail(id) {
+  const pane = $('detailPane');
+  pane.innerHTML = '<div class="d-loading">加载中…</div>';
+  try {
+    const m = await api('GET', '/api/messages/' + id);
+    const acc = state.accounts.find(a => a.id === m.accountId);
+    pane.innerHTML = `
+      <div class="inner">
+        <div class="d-subject">${m.isStarred ? '★ ' : ''}${esc(m.subject || '(无主题)')}</div>
+        <div class="d-meta">
+          <div class="d-avatar" style="background:${colorOf(m.senderEmail)}">${esc((m.senderName || m.senderEmail || '?').slice(0,1).toUpperCase())}</div>
+          <div class="d-who">
+            <div class="n">${esc(m.senderName || m.senderEmail)}</div>
+            <div class="e">${esc(m.senderEmail)}${acc ? ' · ' + esc(acc.name) : ''}${m.recipients ? ' → ' + esc(m.recipients) : ''}</div>
+          </div>
+          <div class="d-time">${esc(timeFmt(m.dateReceived))}</div>
+        </div>
+        <div class="d-body">${renderBody(m)}</div>
+      </div>`;
+    // iframe 自适应正文高度，消除内部滚动条（sandbox 仍禁止脚本执行）
+    pane.querySelectorAll('iframe.mail-frame').forEach(f => {
+      const fit = () => { try { if (f.contentDocument && f.contentDocument.body) f.style.height = Math.max(200, f.contentDocument.documentElement.scrollHeight || f.contentDocument.body.scrollHeight) + 'px'; } catch (e) {} };
+      f.addEventListener('load', () => {
+        fit();
+        try { if (f.contentDocument && f.contentDocument.body && 'ResizeObserver' in window) {
+          new ResizeObserver(fit).observe(f.contentDocument.body);
+          new ResizeObserver(fit).observe(f.contentDocument.documentElement);
+        } } catch (e) {}
+      });
+    });
+    // 更新列表的未读角标
+    loadAccounts();
+  } catch (e) { pane.innerHTML = '<div class="d-placeholder">加载失败：' + esc(e.message) + '</div>'; }
+}
+function normalizeMailHtml(html) {
+  let out = String(html || '');
+  // 移除 color-scheme 声明，避免浏览器把邮件渲染成暗色底
+  out = out.replace(/color-scheme\s*:[^;"'}]*/gi, '');
+  // 移除 prefers-color-scheme 媒体查询块（邮件客户端的暗色适配会引入黑底）
+  out = out.replace(/@media[^{]*prefers-color-scheme[^{]*\{(?:(?:[^{}]*)\}|[^}]*)\}/gi, '');
+  // 页面级基底：白底深字，抵消邮件自带的 body 背景样式
+  const base = '<style>body{background:#fff !important;color:#1f2329 !important;}</style>';
+  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head[^>]*>/i, m => m + base);
+  else if (/<html[^>]*>/i.test(out)) out = out.replace(/<html[^>]*>/i, m => m + base);
+  else out = base + out;
+  return out;
+}
+// srcdoc 属性转义：只转义 & 和 "，绝不能用 esc()（会把整个 HTML 的标签也转义，
+// 且 &quot; 被二次转义成 &amp;quot;，导致邮件的 style/class 全部失效、样式错乱）
+function srcdocAttr(html) {
+  return String(html || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+function renderBody(m) {
+  if (m.bodyHtml) {
+    // 有 HTML 正文时用 iframe 渲染，避免样式污染；注入前先归一化配色
+    return `<iframe sandbox="allow-same-origin" srcdoc="${srcdocAttr(normalizeMailHtml(m.bodyHtml))}" class="mail-frame" style="min-height:200px"></iframe>`;
+  }
+  return `<div style="white-space:pre-wrap">${esc(m.bodyText || '(无正文)')}</div>`;
+}
+
+/* ========== 筛选 / 搜索 / 分页 ========== */
+document.querySelectorAll('.filters button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.filter = btn.dataset.f;
+    state.page = 1;
+    loadMessages();
+  };
+});
+let searchTimer;
+$('searchInput').oninput = () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { state.keyword = $('searchInput').value.trim(); state.page = 1; loadMessages(); }, 300);
+};
+$('btnPrev').onclick = () => { if (state.page > 1) { state.page--; loadMessages(); } };
+$('btnNext').onclick = () => { if (state.page < Math.ceil(state.total / state.pageSize)) { state.page++; loadMessages(); } };
+
+/* ========== 添加/编辑账号 ========== */
+function openModal(acc) {
+  state.editingId = acc ? acc.id : null;
+  $('modalTitle').textContent = acc ? '编辑账号' : '添加账号';
+  $('fName').value = acc ? acc.name : '';
+  $('fEmail').value = acc ? acc.emailAddress : '';
+  $('fUsername').value = acc ? (acc.username || '') : '';
+  $('fPassword').value = '';
+  $('testResult').innerHTML = '';
+  if (acc) {
+    state.protocol = acc.protocol || 'imap';
+    const imap = acc.protocol === 'imap';
+    const pop3 = acc.protocol === 'pop3';
+    const smtp = acc.protocol === 'smtp';
+    const ex = acc.protocol === 'exchange';
+    $('fHost').value = imap ? (acc.imapHost || '') : pop3 ? (acc.pop3Host || '') : smtp ? (acc.smtpHost || '') : (acc.exchangeServerUrl || '');
+    $('fPort').value = imap ? (acc.imapPort || 993) : pop3 ? (acc.pop3Port || 995) : smtp ? (acc.smtpPort || 465) : '';
+    $('fSecure').checked = imap ? acc.imapSecure : pop3 ? acc.pop3Secure : smtp ? acc.smtpSecure : true;
+    $('fEmail').disabled = true;
+  } else {
+    $('fEmail').disabled = false;
+    $('fHost').value = 'imap.qq.com';
+    $('fPort').value = 993;
+    $('fSecure').checked = true;
+  }
+  renderProtoOptions();
+  $('modalMask').style.display = 'flex';
+  setTimeout(() => $('fName').focus(), 50);
+}
+function renderProtoOptions() {
+  document.querySelectorAll('#protoOptions button').forEach(b => {
+    b.classList.toggle('active', b.dataset.p === state.protocol);
+  });
+  const hints = {
+    imap: 'IMAP 支持最完整（QQ/163/Gmail/Outlook 通用），推荐首选。服务器如 imap.qq.com:993。',
+    pop3: 'POP3 仅同步收件箱。若你的邮箱开放 POP3 可用（如 pop.qq.com:995）。',
+    smtp: 'SMTP 用于发送邮件（如 smtp.qq.com:465）。单独配置 SMTP 时测试的是发信通道。',
+    exchange: 'Exchange 请填写 EWS 服务器地址；多数 Exchange 邮箱也开放 IMAP，建议改用 IMAP 更稳定。',
+  };
+  $('protoHint').textContent = hints[state.protocol];
+  const defaults = { imap: ['imap.qq.com', 993], pop3: ['pop.qq.com', 995], smtp: ['smtp.qq.com', 465], exchange: ['', 0] };
+  const [h, p] = defaults[state.protocol];
+  if (!state.editingId && h) { $('fHost').value = h; $('fPort').value = p; }
+}
+document.querySelectorAll('#protoOptions button').forEach(b => {
+  b.onclick = () => { state.protocol = b.dataset.p; renderProtoOptions(); };
+});
+$('btnAdd').onclick = () => openModal(null);
+$('btnCloseModal').onclick = closeModal;
+$('btnCancel').onclick = closeModal;
+function closeModal() { $('modalMask').style.display = 'none'; $('testResult').innerHTML = ''; }
+
+$('btnTest').onclick = async () => {
+  const body = collectForm();
+  if (!body.username || !body.password) { toast('请先填写用户名和授权码', 'err'); return; }
+  const btn = $('btnTest');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>测试中...';
+  try {
+    const r = await api('POST', '/api/accounts/test-connection', body);
+    $('testResult').innerHTML = `<div class="test-result ${r.success ? 'ok' : 'fail'}">${esc(r.message)}</div>`;
+    if (!r.success) toast('连接失败：' + r.message, 'err');
+  } catch (e) {
+    $('testResult').innerHTML = `<div class="test-result fail">连接失败：${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '测试连接';
+  }
+};
+
+$('btnSave').onclick = async () => {
+  const body = collectForm();
+  if (!body.emailAddress || !body.username || !body.password) { toast('邮箱地址、用户名、授权码均为必填', 'err'); return; }
+  const btn = $('btnSave');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>保存中...';
+  try {
+    if (state.editingId) {
+      await api('PATCH', '/api/accounts/' + state.editingId, body);
+      toast('账号已更新', 'ok');
+    } else {
+      await api('POST', '/api/accounts', body);
+      toast('账号已添加', 'ok');
+      // 添加成功后自动同步一次
+      const data = await api('GET', '/api/accounts');
+      const created = (data.items || []).find(a => a.emailAddress === body.emailAddress);
+      if (created) { state.currentAccountId = created.id; }
+    }
+    closeModal();
+    await loadAccounts();
+    if (state.editingId) state.editingId = null;
+  } catch (e) {
+    toast('保存失败：' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '保存';
+  }
+};
+
+function collectForm() {
+  const body = {
+    name: $('fName').value.trim(),
+    emailAddress: $('fEmail').value.trim(),
+    protocol: state.protocol,
+    username: $('fUsername').value.trim(),
+    password: $('fPassword').value,
+    imapHost: '', imapPort: 993, imapSecure: true,
+    pop3Host: '', pop3Port: 995, pop3Secure: true,
+    smtpHost: '', smtpPort: 465, smtpSecure: true,
+    exchangeServerUrl: '',
+  };
+  const host = $('fHost').value.trim();
+  const port = parseInt($('fPort').value, 10);
+  const secure = $('fSecure').checked;
+  if (state.protocol === 'imap') { body.imapHost = host; body.imapPort = port || 993; body.imapSecure = secure; }
+  else if (state.protocol === 'pop3') { body.pop3Host = host; body.pop3Port = port || 995; body.pop3Secure = secure; }
+  else if (state.protocol === 'smtp') { body.smtpHost = host; body.smtpPort = port || 465; body.smtpSecure = secure; }
+  else { body.exchangeServerUrl = host; }
+  return body;
+}
+
+/* ========== 删除 ========== */
+async function doDelete(id, name) {
+  if (!confirm(`确认删除账号「${name}」？本地缓存的邮件也会一并删除。`)) return;
+  try {
+    await api('DELETE', '/api/accounts/' + id);
+    if (state.currentAccountId === id) state.currentAccountId = null;
+    toast('账号已删除', 'ok');
+    loadAccounts();
+  } catch (e) { toast('删除失败：' + e.message, 'err'); }
+}
+
+/* ========== 启动 ========== */
+loadAccounts();
+</script>
+</body>
+</html>
