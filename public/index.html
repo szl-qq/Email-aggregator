@@ -97,6 +97,14 @@
   .d-body iframe { width: 100%; border: none; }
   .d-placeholder { padding: 80px 40px; text-align: center; color: var(--text-3); font-size: 14px; }
   .d-loading { padding: 60px; text-align: center; color: var(--text-3); }
+  .d-translation { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .d-translation .t-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; background: #fafbfc; border-bottom: 1px solid var(--border); }
+  .d-translation .t-tabs button { border: 1px solid var(--border); background: var(--panel); padding: 5px 12px; border-radius: 16px; font-size: 12px; color: var(--text-2); }
+  .d-translation .t-tabs button:hover { border-color: var(--accent); color: var(--accent); }
+  .d-translation .t-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .d-translation .t-view { padding: 16px; max-height: 70vh; overflow-y: auto; }
+  .d-translation .t-plain { font-size: 13.5px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; color: var(--text); }
+  .d-translation .t-status { padding: 8px 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-3); background: #fafbfc; }
 
   /* 模态框 */
   .modal-mask { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
@@ -249,6 +257,7 @@ const state = {
 };
 
 const AVATAR_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'];
+const translationCache = new Map(); // 邮件翻译结果（内存级缓存）
 
 /* ========== 工具 ========== */
 function $(id) { return document.getElementById(id); }
@@ -402,6 +411,7 @@ async function openDetail(id) {
             <div class="e">${esc(m.senderEmail)}${acc ? ' · ' + esc(acc.name) : ''}${m.recipients ? ' → ' + esc(m.recipients) : ''}</div>
           </div>
           <div class="d-time">${esc(timeFmt(m.dateReceived))}</div>
+          <button id="btnTranslate" class="btn" style="padding:5px 12px;font-size:12px;flex-shrink:0">🌐 翻译</button>
         </div>
         <div class="d-body">${renderBody(m)}</div>
       </div>`;
@@ -416,6 +426,71 @@ async function openDetail(id) {
         } } catch (e) {}
       });
     });
+    // 翻译：多引擎聚合，译文按原邮件版式渲染在 iframe 中
+    const btnT = pane.querySelector('#btnTranslate');
+    const dBody = pane.querySelector('.d-body');
+    const origHtml = m.bodyHtml || null;
+    const origText = m.bodyText || '';
+    let trPanel = null;
+
+    const renderTranslation = (data) => {
+      if (trPanel) trPanel.remove();
+      trPanel = document.createElement('div');
+      trPanel.className = 'd-translation';
+
+      const bar = document.createElement('div'); bar.className = 't-tabs';
+      const view = document.createElement('div'); view.className = 't-view';
+      const foot = document.createElement('div'); foot.className = 't-status';
+
+      const tabs = [{ key: 'original', label: '原文', ok: true }]
+        .concat((data.results || []).map((r) => ({ key: r.engine, label: r.label || r.engine, ok: r.ok, r })));
+
+      const show = (tab) => {
+        view.innerHTML = '';
+        if (tab.key === 'original') {
+          if (origHtml) view.appendChild(htmlToFrame(origHtml));
+          else { const d = document.createElement('div'); d.className = 't-plain'; d.textContent = origText || '(无正文)'; view.appendChild(d); }
+        } else if (!tab.r.ok) {
+          const d = document.createElement('div'); d.className = 't-plain'; d.textContent = '该引擎失败：' + (tab.r.error || '未知错误'); view.appendChild(d);
+        } else if (tab.r.html) {
+          view.appendChild(htmlToFrame(tab.r.html));
+        } else {
+          const d = document.createElement('div'); d.className = 't-plain'; d.textContent = tab.r.text || '(空译文)'; view.appendChild(d);
+        }
+        [...bar.children].forEach((b) => b.classList.toggle('active', b.dataset.k === tab.key));
+        const secs = tab.r && tab.r.ms ? ' · 耗时 ' + (Math.round(tab.r.ms / 100) / 10) + 's' : '';
+        foot.textContent = '目标：' + (data.target || '') + (data.truncated ? ' · 正文超长仅译前段' : '') + (data.cached ? ' · 来自缓存' : '') + secs;
+      };
+
+      tabs.forEach((tab) => {
+        const b = document.createElement('button');
+        b.dataset.k = tab.key;
+        b.textContent = tab.label + (tab.ok ? '' : ' ✕');
+        b.onclick = () => show(tab);
+        bar.appendChild(b);
+      });
+
+      trPanel.appendChild(bar);
+      trPanel.appendChild(view);
+      trPanel.appendChild(foot);
+      dBody.insertAdjacentElement('afterend', trPanel);
+
+      show(tabs.find((t) => t.key !== 'original' && t.ok) || tabs[0]);
+    };
+
+    btnT.onclick = async () => {
+      if (trPanel) { trPanel.remove(); trPanel = null; btnT.textContent = '🌐 翻译'; return; }
+      let data = translationCache.get(id);
+      if (!data) {
+        btnT.disabled = true; btnT.textContent = '翻译中…';
+        try { data = await api('POST', `/api/messages/${id}/translate`, {}); translationCache.set(id, data); }
+        catch (e) { toast('翻译失败：' + e.message, 'err'); btnT.disabled = false; btnT.textContent = '🌐 翻译'; return; }
+        btnT.disabled = false;
+      }
+      if (data.skipped) { toast(data.message || '无需翻译', 'info'); btnT.textContent = '🌐 翻译'; return; }
+      renderTranslation(data);
+      btnT.textContent = '🌐 收起翻译';
+    };
     // 更新列表的未读角标
     loadAccounts();
   } catch (e) { pane.innerHTML = '<div class="d-placeholder">加载失败：' + esc(e.message) + '</div>'; }
@@ -444,6 +519,23 @@ function renderBody(m) {
     return `<iframe sandbox="allow-same-origin" srcdoc="${srcdocAttr(normalizeMailHtml(m.bodyHtml))}" class="mail-frame" style="min-height:200px"></iframe>`;
   }
   return `<div style="white-space:pre-wrap">${esc(m.bodyText || '(无正文)')}</div>`;
+}
+// 生成可自适应高度的邮件渲染 iframe（翻译面板复用）
+function htmlToFrame(html) {
+  const f = document.createElement('iframe');
+  f.sandbox = 'allow-same-origin';
+  f.className = 'mail-frame';
+  f.style.minHeight = '200px';
+  f.setAttribute('srcdoc', srcdocAttr(normalizeMailHtml(html)));
+  const fit = () => { try { if (f.contentDocument && f.contentDocument.body) f.style.height = Math.max(200, f.contentDocument.documentElement.scrollHeight || f.contentDocument.body.scrollHeight) + 'px'; } catch (e) {} };
+  f.addEventListener('load', () => {
+    fit();
+    try { if (f.contentDocument && f.contentDocument.body && 'ResizeObserver' in window) {
+      new ResizeObserver(fit).observe(f.contentDocument.body);
+      new ResizeObserver(fit).observe(f.contentDocument.documentElement);
+    } } catch (e) {}
+  });
+  return f;
 }
 
 /* ========== 筛选 / 搜索 / 分页 ========== */
