@@ -34,6 +34,7 @@ const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = path.join(__dirname, 'data');
 const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
 const MESSAGES_DIR = path.join(DATA_DIR, 'messages');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 
 // AES-256-GCM 加密密钥（本地工具，固定默认；可用环境变量 EMAIL_KEY 覆盖）
 const ENCRYPTION_KEY = Buffer.from(
@@ -291,14 +292,32 @@ function upsertMessages(accountId, fetched) {
   return { syncedCount: fetched.length, newCount };
 }
 
-/* ==================== 翻译 ==================== */
-const TRANSLATE_LLM_URL = process.env.TRANSLATE_LLM_URL || 'http://127.0.0.1:31415/v1/chat/completions';
-const TRANSLATE_LLM_KEY = process.env.TRANSLATE_LLM_KEY || 'lm-studio';
-const TRANSLATE_LLM_MODEL = process.env.TRANSLATE_LLM_MODEL || 'auto';
-const TRANSLATE_TARGET = process.env.TRANSLATE_TARGET || '简体中文';
-const TRANSLATE_MAX_LEN = Number(process.env.TRANSLATE_MAX_LEN || 6000);
-const TRANSLATE_MAX_SEGS = Number(process.env.TRANSLATE_MAX_SEGS || 80);
+/* ==================== 应用设置（data/settings.json，运行时生效） ==================== */
+function readSettings() {
+  try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) || {}; } catch { return {}; }
+}
+function writeSettings(s) {
+  ensureDataDir();
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2), 'utf8');
+}
+/** 翻译配置：settings.json 优先，其次 .env / 环境变量，最后默认值 */
+function translateConfig() {
+  const s = readSettings().translate || {};
+  return {
+    url: s.url || process.env.TRANSLATE_LLM_URL || 'http://127.0.0.1:31415/v1/chat/completions',
+    key: s.key || process.env.TRANSLATE_LLM_KEY || 'lm-studio',
+    model: s.model || process.env.TRANSLATE_LLM_MODEL || 'auto',
+    target: s.target || process.env.TRANSLATE_TARGET || '简体中文',
+    maxLen: Number(s.maxLen || process.env.TRANSLATE_MAX_LEN || 6000),
+    maxSegs: Number(s.maxSegs || process.env.TRANSLATE_MAX_SEGS || 80),
+  };
+}
+function maskKey(k) {
+  if (!k) return '';
+  return k.length <= 12 ? '****' : k.slice(0, 8) + '****' + k.slice(-4);
+}
 
+/* ==================== 翻译 ==================== */
 function htmlToText(html) {
   return String(html || '')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -317,14 +336,14 @@ function isMostlyChinese(text) {
   const letters = (text.match(/[A-Za-z]/g) || []).length;
   return cjk > letters;
 }
-async function llmChat(messages, timeoutMs = 90000) {
+async function llmChat(cfg, messages, timeoutMs = 90000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const resp = await fetch(TRANSLATE_LLM_URL, {
+    const resp = await fetch(cfg.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TRANSLATE_LLM_KEY },
-      body: JSON.stringify({ model: TRANSLATE_LLM_MODEL, messages, stream: false }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key },
+      body: JSON.stringify({ model: cfg.model, messages, stream: false }),
       signal: controller.signal,
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -334,16 +353,16 @@ async function llmChat(messages, timeoutMs = 90000) {
     return out;
   } finally { clearTimeout(timer); }
 }
-async function llmTranslateText(text) {
-  return llmChat([
-    { role: 'system', content: `你是翻译引擎。把用户文本翻译成${TRANSLATE_TARGET}，只输出译文，不要任何解释，保留原有换行与格式。` },
+async function llmTranslateText(cfg, text) {
+  return llmChat(cfg, [
+    { role: 'system', content: `你是翻译引擎。把用户文本翻译成${cfg.target}，只输出译文，不要任何解释，保留原有换行与格式。` },
     { role: 'user', content: text },
   ]);
 }
 /** 按 JSON 数组逐段翻译（保证与原 HTML 的文本节点一一对应） */
-async function llmTranslateSegs(segs) {
-  const out = await llmChat([
-    { role: 'system', content: `你是翻译引擎。输入是一个 JSON 字符串数组，请把每一项翻译成${TRANSLATE_TARGET}，输出等长的 JSON 字符串数组。只输出 JSON，不要 Markdown 代码块、不要解释。` },
+async function llmTranslateSegs(cfg, segs) {
+  const out = await llmChat(cfg, [
+    { role: 'system', content: `你是翻译引擎。输入是一个 JSON 字符串数组，请把每一项翻译成${cfg.target}，输出等长的 JSON 字符串数组。只输出 JSON，不要 Markdown 代码块、不要解释。` },
     { role: 'user', content: JSON.stringify(segs) },
   ]);
   const cleaned = out.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
@@ -365,11 +384,11 @@ function assembleSegments(parts, segs, translated) {
   const map = new Map(segs.map((s, k) => [s.idx, translated[k]]));
   return parts.map((s, i) => (map.has(i) ? map.get(i) : s)).join('');
 }
-async function translateHtml(html) {
+async function translateHtml(cfg, html) {
   const { parts, segs } = extractSegments(html);
   if (!segs.length) throw new Error('正文无文本节点');
-  const limited = segs.slice(0, TRANSLATE_MAX_SEGS);
-  const out = await llmTranslateSegs(limited.map((s) => s.text));
+  const limited = segs.slice(0, cfg.maxSegs);
+  const out = await llmTranslateSegs(cfg, limited.map((s) => s.text));
   if (!out || out.some((t) => !t)) throw new Error('部分分段翻译失败');
   return assembleSegments(parts, limited, out);
 }
@@ -586,38 +605,104 @@ app.post('/api/messages/:id/translate', async (req, res, next) => {
     const source = (msg.bodyText && msg.bodyText.trim()) ? msg.bodyText : htmlToText(msg.bodyHtml || '');
     if (!source.trim()) return res.status(400).json({ message: '该邮件没有可翻译的正文' });
 
+    const cfg = translateConfig();
+
     // 命中缓存（同目标语言且未要求刷新）
-    if (msg.translation && msg.translationTarget === TRANSLATE_TARGET && !body.refresh) {
+    if (msg.translation && msg.translationTarget === cfg.target && !body.refresh) {
       return res.json({
-        target: TRANSLATE_TARGET, model: msg.translationModel || TRANSLATE_LLM_MODEL,
+        target: cfg.target, model: msg.translationModel || cfg.model,
         text: msg.translation, html: null, truncated: !!msg.translationTruncated, cached: true,
       });
     }
 
     if (isMostlyChinese(source) && !body.force) {
-      return res.json({ target: TRANSLATE_TARGET, skipped: true, message: '邮件正文以中文为主，无需翻译' });
+      return res.json({ target: cfg.target, skipped: true, message: '邮件正文以中文为主，无需翻译' });
     }
 
-    const truncated = source.length > TRANSLATE_MAX_LEN;
-    const srcText = source.slice(0, TRANSLATE_MAX_LEN);
+    const truncated = source.length > cfg.maxLen;
+    const srcText = source.slice(0, cfg.maxLen);
     const srcHtml = (msg.bodyHtml && msg.bodyHtml.trim()) ? msg.bodyHtml : null;
 
     const t0 = Date.now();
     // 文本译文与版式渲染译文并行请求，缩短总耗时
     const [text, html] = await Promise.all([
-      llmTranslateText(srcText),
-      srcHtml ? translateHtml(srcHtml).catch(() => null) : Promise.resolve(null),
+      llmTranslateText(cfg, srcText),
+      srcHtml ? translateHtml(cfg, srcHtml).catch(() => null) : Promise.resolve(null),
     ]);
 
     msg.translation = text;
-    msg.translationTarget = TRANSLATE_TARGET;
+    msg.translationTarget = cfg.target;
     msg.translationTruncated = truncated;
-    msg.translationModel = TRANSLATE_LLM_MODEL;
+    msg.translationModel = cfg.model;
     msg.updatedAt = new Date().toISOString();
     writeMessages(accountId, list);
 
-    res.json({ target: TRANSLATE_TARGET, model: TRANSLATE_LLM_MODEL, text, html, truncated, ms: Date.now() - t0 });
+    res.json({ target: cfg.target, model: cfg.model, text, html, truncated, ms: Date.now() - t0 });
   } catch (e) { next(e); }
+});
+
+/* ==================== 设置 ==================== */
+// 读取设置（密钥仅返回掩码，不回传明文）
+app.get('/api/settings', (req, res) => {
+  const s = readSettings();
+  const t = s.translate || {};
+  const cfg = translateConfig();
+  res.json({
+    translate: {
+      url: t.url || '',
+      model: t.model || '',
+      target: t.target || '',
+      maxLen: t.maxLen || '',
+      maxSegs: t.maxSegs || '',
+      keySet: !!cfg.key,
+      keyMasked: maskKey(cfg.key),
+      effective: { url: cfg.url, model: cfg.model, target: cfg.target, maxLen: cfg.maxLen, maxSegs: cfg.maxSegs },
+    },
+    ui: s.ui || {},
+  });
+});
+
+// 更新设置（translateKey 为空则保持原值；clearKey=true 清空）
+app.put('/api/settings', (req, res) => {
+  const b = req.body || {};
+  const s = readSettings();
+  s.translate = s.translate || {};
+  const t = s.translate;
+  if (b.url !== undefined) t.url = String(b.url).trim();
+  if (b.model !== undefined) t.model = String(b.model).trim();
+  if (b.target !== undefined) t.target = String(b.target).trim();
+  if (b.maxLen !== undefined && b.maxLen !== '') t.maxLen = Number(b.maxLen) || undefined;
+  if (b.maxSegs !== undefined && b.maxSegs !== '') t.maxSegs = Number(b.maxSegs) || undefined;
+  if (b.clearKey) t.key = '';
+  else if (b.translateKey) t.key = String(b.translateKey).trim();
+  if (b.ui !== undefined) s.ui = b.ui;
+  writeSettings(s);
+  res.json({ ok: true });
+});
+
+// 测试翻译服务配置（用当前生效配置发一句样例）
+app.post('/api/settings/test-translate', async (req, res) => {
+  try {
+    const cfg = { ...translateConfig(), ...(req.body || {}) };
+    if (req.body && req.body.translateKey) cfg.key = req.body.translateKey;
+    const t0 = Date.now();
+    const out = await llmTranslateText(cfg, 'Your domain example.com was removed from the account.');
+    res.json({ ok: true, ms: Date.now() - t0, sample: out.slice(0, 200), url: cfg.url, model: cfg.model });
+  } catch (e) {
+    res.json({ ok: false, message: e.message });
+  }
+});
+
+// 删除全部账号（连同全部邮件缓存）
+app.delete('/api/accounts', (req, res) => {
+  const accounts = readAccounts();
+  writeAccounts([]);
+  let removed = 0;
+  for (const f of fs.readdirSync(MESSAGES_DIR)) {
+    if (!f.endsWith('.json')) continue;
+    try { fs.unlinkSync(path.join(MESSAGES_DIR, f)); removed++; } catch {}
+  }
+  res.json({ ok: true, removedAccounts: accounts.length, removedMessageFiles: removed });
 });
 
 // 统一错误处理

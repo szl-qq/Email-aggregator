@@ -143,6 +143,84 @@
   @keyframes sp { to { transform: rotate(360deg); } }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+  /* 顶栏图标按钮组 */
+  .seg { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; background: var(--panel); }
+  .seg-btn { border: none; background: transparent; color: var(--text-2); width: 36px; height: 32px; display: flex; align-items: center; justify-content: center; }
+  .seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+  .seg-btn:hover { background: var(--accent-weak); color: var(--accent); }
+  .seg-btn.on { color: var(--accent); background: var(--accent-weak); }
+  .seg-btn.off { color: var(--text-3); }
+  .seg-btn.off:hover { color: var(--text-2); background: #f3f4f6; }
+  html[data-theme="dark"] .seg-btn.off:hover { background: #262a32; }
+  .btn-ghost-danger { background: transparent; border-color: transparent; color: var(--danger); }
+  .btn-ghost-danger:hover { border-color: var(--danger); background: transparent; }
+
+  /* 面板收起 */
+  .sidebar.collapsed, .mail-list.collapsed { display: none; }
+
+  /* 设置面板 */
+  .s-tabs { display: flex; gap: 6px; padding: 14px 22px 0; }
+  .s-tabs button { border: none; background: transparent; padding: 7px 14px; border-radius: 8px; font-size: 13px; color: var(--text-2); }
+  .s-tabs button.active { background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+  .s-row { display: flex; align-items: center; gap: 10px; }
+  .s-section { font-size: 12px; font-weight: 600; color: var(--text-3); letter-spacing: .02em; margin: 2px 0 10px; }
+  .s-check { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+  .s-check input { width: auto; margin: 0; }
+  .s-divider { height: 1px; background: var(--border); margin: 20px 0 16px; }
+  /* 主题选择卡 */
+  .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .theme-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text-2); font-size: 12.5px; transition: border-color .15s, background .15s; }
+  .theme-card .th-ico { font-size: 20px; line-height: 1; }
+  .theme-card:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-card.active { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+  /* 开关行 */
+  .toggle-list { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .toggle-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-row:hover { background: var(--accent-weak); }
+  .tg-txt { flex: 1; min-width: 0; }
+  .tg-txt b { display: block; font-size: 13px; font-weight: 600; color: var(--text); }
+  .tg-txt i { display: block; font-style: normal; font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+  .switch { appearance: none; -webkit-appearance: none; width: 40px; height: 22px; border-radius: 11px; background: #cfd4dc; position: relative; cursor: pointer; flex-shrink: 0; transition: background .18s; margin: 0; border: none; }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .18s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .switch:checked { background: var(--accent); }
+  .switch:checked::after { transform: translateX(18px); }
+  html[data-theme="dark"] .switch { background: #3a3f49; }
+  html[data-theme="dark"] .switch:checked { background: var(--accent); }
+  .s-list { margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .s-acc { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .s-acc:last-child { border-bottom: none; }
+  .s-acc .avatar { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .s-acc .info { flex: 1; min-width: 0; }
+  .s-acc .info .n { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s-acc .info .e { font-size: 11.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s-empty { padding: 22px; text-align: center; color: var(--text-3); font-size: 13px; }
+
+  /* 暗色主题 */
+  html[data-theme="dark"] {
+    --bg: #16181d;
+    --panel: #1e2127;
+    --border: #2c3038;
+    --text: #e6e8eb;
+    --text-2: #a1a7b3;
+    --text-3: #6f7681;
+    --accent: #5b9bf8;
+    --accent-weak: #1d2b45;
+    --danger: #f87171;
+  }
+  html[data-theme="dark"] .acc-item:hover { background: #262a32; }
+  html[data-theme="dark"] .mail-item { border-bottom-color: #262a32; }
+  html[data-theme="dark"] .mail-item:hover { background: #22262e; }
+  html[data-theme="dark"] .icon-btn:hover { background: #2c3038; }
+  html[data-theme="dark"] .search-box input { background: #16181d; color: var(--text); }
+  html[data-theme="dark"] .sidebar .add-acc { border-color: #3a3f49; }
+  html[data-theme="dark"] .d-translation .t-tabs,
+  html[data-theme="dark"] .d-translation .t-status { background: #22262e; }
+  html[data-theme="dark"] .test-result.ok { background: #123524; color: #4ade80; }
+  html[data-theme="dark"] .test-result.fail { background: #3a1d1d; }
+  html[data-theme="dark"] .modal { box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #3a3f49; }
 </style>
 </head>
 <body>
@@ -154,7 +232,17 @@
       <input id="searchInput" placeholder="搜索邮件..." />
     </div>
     <div class="spacer"></div>
-    <div style="font-size:12px;color:var(--text-3)">本地运行 · 数据存本机</div>
+    <div class="seg">
+      <button class="seg-btn" id="btnToggleSidebar" title="显示 / 隐藏账号列表">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
+      </button>
+      <button class="seg-btn" id="btnToggleList" title="显示 / 隐藏邮件列表">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>
+      </button>
+      <button class="seg-btn" id="btnSettings" title="设置">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
   </div>
   <div class="main">
     <!-- 左侧账号栏 -->
@@ -236,6 +324,77 @@
       <button class="btn btn-test" id="btnTest">测试连接</button>
       <button class="btn" id="btnCancel">取消</button>
       <button class="btn btn-primary" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置面板 -->
+<div class="modal-mask" id="settingsMask" style="display:none">
+  <div class="modal" style="width:640px">
+    <div class="m-head"><h3>设置</h3><button class="icon-btn" id="btnCloseSettings" style="width:30px;height:30px;font-size:16px">✕</button></div>
+    <div class="s-tabs" id="settingsTabs">
+      <button data-t="accounts" class="active">账号管理</button>
+      <button data-t="translate">翻译服务</button>
+      <button data-t="appearance">外观与布局</button>
+    </div>
+    <div class="m-body" style="min-height:300px">
+      <!-- 账号管理 -->
+      <div class="sp-pane" data-p="accounts">
+        <div class="s-row" style="justify-content:space-between;margin-bottom:8px">
+          <span class="hint">共 <b id="sAccCount">0</b> 个账号</span>
+          <button class="btn" id="btnAddFromSettings">＋ 添加账号</button>
+        </div>
+        <div class="s-list" id="sAccList"></div>
+        <div style="margin-top:12px;text-align:right">
+          <button class="btn btn-ghost-danger" id="btnDeleteAll">删除全部账号</button>
+        </div>
+      </div>
+      <!-- 翻译服务 -->
+      <div class="sp-pane" data-p="translate" style="display:none">
+        <div class="field">
+          <label>接口地址（OpenAI 兼容）</label>
+          <input id="sTrUrl" placeholder="http://127.0.0.1:31415/v1/chat/completions" />
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input id="sTrKey" type="password" placeholder="留空表示保持当前 Key 不变" />
+          <div class="hint" id="sTrKeyHint">当前：—</div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>模型</label><input id="sTrModel" placeholder="auto" /></div>
+          <div class="field"><label>目标语言</label><input id="sTrTarget" placeholder="简体中文" /></div>
+        </div>
+        <div class="s-row">
+          <label class="s-check"><input type="checkbox" id="sTrClearKey" /> 清空已保存的 API Key</label>
+        </div>
+        <div id="sTrResult"></div>
+      </div>
+      <!-- 外观与布局 -->
+      <div class="sp-pane" data-p="appearance" style="display:none">
+        <div class="s-section">界面主题</div>
+        <div class="theme-grid" id="themeOptions">
+          <button data-th="light" class="theme-card"><span class="th-ico">☀</span><span class="th-name">浅色</span></button>
+          <button data-th="dark" class="theme-card"><span class="th-ico">🌙</span><span class="th-name">深色</span></button>
+          <button data-th="system" class="theme-card"><span class="th-ico">🖥</span><span class="th-name">跟随系统</span></button>
+        </div>
+        <div class="s-divider"></div>
+        <div class="s-section">布局</div>
+        <div class="toggle-list">
+          <label class="toggle-row">
+            <span class="tg-txt"><b>收起账号列表</b><i>隐藏左侧账号栏，需要时用顶栏按钮展开</i></span>
+            <input type="checkbox" id="sHideSidebar" class="switch" />
+          </label>
+          <label class="toggle-row">
+            <span class="tg-txt"><b>收起邮件列表</b><i>隐藏中间邮件列表，保留右侧正文阅读区</i></span>
+            <input type="checkbox" id="sHideList" class="switch" />
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="m-actions">
+      <button class="btn btn-test" id="btnTestTranslate">测试翻译服务</button>
+      <button class="btn btn-primary" id="btnSaveSettings">保存</button>
+      <button class="btn" id="btnDoneSettings">完成</button>
     </div>
   </div>
 </div>
@@ -677,7 +836,168 @@ async function doDelete(id, name) {
   } catch (e) { toast('删除失败：' + e.message, 'err'); }
 }
 
+/* ========== 主题 / 布局偏好（保存在本机浏览器） ========== */
+const PREF_KEY = 'emailAgg.prefs';
+function getPrefs() { try { return JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch { return {}; } }
+function setPrefs(p) { try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch {} }
+function applyTheme(mode) {
+  const m = mode || getPrefs().theme || 'system';
+  const dark = m === 'dark' || (m === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+}
+function applyLayout() {
+  const p = getPrefs();
+  const sidebar = document.querySelector('.sidebar');
+  const list = document.querySelector('.mail-list');
+  sidebar.classList.toggle('collapsed', !!p.hideSidebar);
+  list.classList.toggle('collapsed', !!p.hideList);
+  const bs = $('btnToggleSidebar'), bl = $('btnToggleList');
+  bs.classList.toggle('off', !!p.hideSidebar);
+  bs.classList.toggle('on', !p.hideSidebar);
+  bs.title = (p.hideSidebar ? '显示' : '隐藏') + '账号列表';
+  bl.classList.toggle('off', !!p.hideList);
+  bl.classList.toggle('on', !p.hideList);
+  bl.title = (p.hideList ? '显示' : '隐藏') + '邮件列表';
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if ((getPrefs().theme || 'system') === 'system') applyTheme('system');
+});
+
+/* ========== 设置面板 ========== */
+function switchSettingsTab(t) {
+  document.querySelectorAll('#settingsTabs button').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+  document.querySelectorAll('.sp-pane').forEach(p => { p.style.display = (p.dataset.p === t ? '' : 'none'); });
+  // 底部按钮按标签页区分，避免各页都堆同一排按钮
+  const isTranslate = t === 'translate';
+  $('btnTestTranslate').style.display = isTranslate ? '' : 'none';
+  $('btnSaveSettings').style.display = isTranslate ? '' : 'none';
+  $('btnDoneSettings').style.display = isTranslate ? 'none' : '';
+}
+function openSettings() {
+  $('settingsMask').style.display = 'flex';
+  switchSettingsTab('accounts');
+  $('sTrResult').innerHTML = '';
+  renderSettingsAccounts();
+  loadSettings();
+}
+function closeSettings() { $('settingsMask').style.display = 'none'; }
+
+function renderSettingsAccounts() {
+  const box = $('sAccList');
+  $('sAccCount').textContent = state.accounts.length;
+  box.innerHTML = '';
+  if (!state.accounts.length) { box.innerHTML = '<div class="s-empty">还没有账号，点右上角「＋ 添加账号」</div>'; return; }
+  for (const a of state.accounts) {
+    const el = document.createElement('div');
+    el.className = 's-acc';
+    el.innerHTML = `
+      <div class="avatar" style="background:${colorOf(a.emailAddress)}">${esc((a.name || '?').slice(0, 1).toUpperCase())}</div>
+      <div class="info"><div class="n">${esc(a.name)}</div>
+        <div class="e">${esc(a.emailAddress)} · ${esc(a.protocol || 'imap')} · ${esc(a.status || 'offline')}</div></div>
+      <button class="icon-btn" data-act="edit" title="编辑账号">✎</button>
+      <button class="icon-btn danger" data-act="del" title="删除账号">🗑</button>`;
+    el.querySelector('[data-act="edit"]').onclick = () => { closeSettings(); openModal(a); };
+    el.querySelector('[data-act="del"]').onclick = async () => { await doDelete(a.id, a.name); await loadAccounts(); renderSettingsAccounts(); };
+    box.appendChild(el);
+  }
+}
+
+function renderThemeOptions() {
+  const cur = getPrefs().theme || 'system';
+  document.querySelectorAll('#themeOptions button').forEach(b => {
+    b.classList.toggle('active', b.dataset.th === cur);
+    b.onclick = () => { const p = getPrefs(); p.theme = b.dataset.th; setPrefs(p); applyTheme(p.theme); renderThemeOptions(); };
+  });
+  $('sHideSidebar').checked = !!getPrefs().hideSidebar;
+  $('sHideList').checked = !!getPrefs().hideList;
+}
+
+async function loadSettings() {
+  try {
+    const s = await api('GET', '/api/settings');
+    const t = s.translate || {};
+    const eff = t.effective || {};
+    $('sTrUrl').value = t.url || '';
+    $('sTrModel').value = t.model || '';
+    $('sTrTarget').value = t.target || '';
+    $('sTrKey').value = '';
+    $('sTrClearKey').checked = false;
+    $('sTrUrl').placeholder = eff.url || '';
+    $('sTrModel').placeholder = eff.model || 'auto';
+    $('sTrTarget').placeholder = eff.target || '简体中文';
+    $('sTrKeyHint').textContent = t.keySet
+      ? '当前 Key：' + t.keyMasked + '（来自设置面板或 .env，留空则不修改）'
+      : '当前未设置 Key（本地网关通常可留空或用任意值）';
+    renderThemeOptions();
+  } catch (e) { toast('读取设置失败：' + e.message, 'err'); }
+}
+
+$('btnSettings').onclick = openSettings;
+$('btnCloseSettings').onclick = closeSettings;
+$('settingsMask').onclick = (ev) => { if (ev.target === $('settingsMask')) closeSettings(); };
+document.querySelectorAll('#settingsTabs button').forEach(b => { b.onclick = () => switchSettingsTab(b.dataset.t); });
+$('btnAddFromSettings').onclick = () => { closeSettings(); openModal(null); };
+$('btnDoneSettings').onclick = closeSettings;
+
+$('btnToggleSidebar').onclick = () => { const p = getPrefs(); p.hideSidebar = !p.hideSidebar; setPrefs(p); applyLayout(); };
+$('btnToggleList').onclick = () => { const p = getPrefs(); p.hideList = !p.hideList; setPrefs(p); applyLayout(); };
+$('sHideSidebar').onchange = (e) => { const p = getPrefs(); p.hideSidebar = e.target.checked; setPrefs(p); applyLayout(); };
+$('sHideList').onchange = (e) => { const p = getPrefs(); p.hideList = e.target.checked; setPrefs(p); applyLayout(); };
+
+$('btnSaveSettings').onclick = async () => {
+  const btn = $('btnSaveSettings');
+  btn.disabled = true;
+  try {
+    await api('PUT', '/api/settings', {
+      url: $('sTrUrl').value.trim(),
+      model: $('sTrModel').value.trim(),
+      target: $('sTrTarget').value.trim(),
+      clearKey: $('sTrClearKey').checked,
+      translateKey: $('sTrKey').value.trim(),
+    });
+    toast('设置已保存', 'ok');
+    await loadSettings();
+  } catch (e) { toast('保存失败：' + e.message, 'err'); }
+  finally { btn.disabled = false; }
+};
+
+$('btnTestTranslate').onclick = async () => {
+  const btn = $('btnTestTranslate');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>测试中...';
+  try {
+    const r = await api('POST', '/api/settings/test-translate', {
+      url: $('sTrUrl').value.trim() || undefined,
+      model: $('sTrModel').value.trim() || undefined,
+      translateKey: $('sTrKey').value.trim() || undefined,
+    });
+    $('sTrResult').innerHTML = r.ok
+      ? `<div class="test-result ok">连接成功（${(r.ms / 1000).toFixed(1)}s · ${esc(r.model)}）<br>样例译文：${esc(r.sample)}</div>`
+      : `<div class="test-result fail">测试失败：${esc(r.message)}</div>`;
+  } catch (e) {
+    $('sTrResult').innerHTML = `<div class="test-result fail">测试失败：${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '测试翻译服务';
+  }
+};
+
+$('btnDeleteAll').onclick = async () => {
+  if (!state.accounts.length) { toast('当前没有账号', 'info'); return; }
+  if (!confirm(`确认删除全部 ${state.accounts.length} 个账号？本地缓存的邮件也会一并删除。`)) return;
+  if (!confirm('再次确认：此操作不可恢复，删除后需重新添加并同步账号。确定继续？')) return;
+  try {
+    const r = await api('DELETE', '/api/accounts');
+    toast(`已删除 ${r.removedAccounts} 个账号、${r.removedMessageFiles} 份邮件缓存`, 'ok');
+    state.currentAccountId = null;
+    closeSettings();
+    await loadAccounts();
+  } catch (e) { toast('删除失败：' + e.message, 'err'); }
+};
+
 /* ========== 启动 ========== */
+applyTheme();
+applyLayout();
 loadAccounts();
 </script>
 </body>

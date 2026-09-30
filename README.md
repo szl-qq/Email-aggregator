@@ -12,6 +12,7 @@
 - **统一收件箱**：跨账号聚合列表，支持「全部 / 未读 / 已加星」筛选 + 关键词搜索 + 分页
 - **正文渲染**：iframe 沙箱隔离 + 配色归一化（剥暗色媒体查询、强制白底深字），自适应高度，避免邮件样式污染主界面
 - **安全**：授权码 AES-256-GCM 加密存储，密钥可由环境变量覆盖
+- **设置面板**（顶栏 ⚙）：集中管理账号增删改、配置翻译服务 API Key（实时生效、密钥仅以掩码回显）、切换浅色/深色/跟随系统主题、收起账号列表与邮件列表、一键删除全部账号
 - **邮件翻译（本地 AI 模型）**：接入任意 OpenAI 兼容接口（FreeLLMAPI / LM Studio / Ollama / DeepSeek 等）一键翻译；译文**按原邮件版式渲染**（逐文本节点翻译、保留 HTML 结构），非纯文本堆砌
 - **零依赖部署**：仅需 Node.js + npm install，无数据库、无构建工具
 
@@ -77,6 +78,10 @@ Windows 用户也可双击 `一键启动.bat`（自动检查依赖、停旧实�
 | POST | `/api/accounts` | 添加账号 |
 | PATCH | `/api/accounts/:id` | 更新账号 |
 | DELETE | `/api/accounts/:id` | 删除账号（连同邮件） |
+| DELETE | `/api/accounts` | 删除全部账号及其邮件缓存 |
+| GET | `/api/settings` | 读取设置（密钥仅返回掩码） |
+| PUT | `/api/settings` | 保存设置（翻译服务 URL / Key / 模型 / 目标语言，实时生效） |
+| POST | `/api/settings/test-translate` | 用当前配置试译一句，验证连通性 |
 | POST | `/api/accounts/test-connection` | 测试连接（不保存） |
 | POST | `/api/accounts/:id/sync` | 同步邮件 |
 | GET | `/api/messages` | 邮件列表（支持 `accountId`/`isRead`/`isStarred`/`keyword`/`page`/`pageSize`） |
