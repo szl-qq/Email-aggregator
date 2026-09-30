@@ -12,7 +12,7 @@
 - **统一收件箱**：跨账号聚合列表，支持「全部 / 未读 / 已加星」筛选 + 关键词搜索 + 分页
 - **正文渲染**：iframe 沙箱隔离 + 配色归一化（剥暗色媒体查询、强制白底深字），自适应高度，避免邮件样式污染主界面
 - **安全**：授权码 AES-256-GCM 加密存储，密钥可由环境变量覆盖
-- **邮件翻译（多引擎聚合）**：同时调用多个翻译引擎（本地 LLM / Google / MyMemory），标签页对比结果，并由 LLM 融合出一份「综合译本」；译文**按原邮件版式渲染**（逐文本节点翻译、保留 HTML 结构），非纯文本堆砌
+- **邮件翻译（本地 AI 模型）**：接入任意 OpenAI 兼容接口（FreeLLMAPI / LM Studio / Ollama / DeepSeek 等）一键翻译；译文**按原邮件版式渲染**（逐文本节点翻译、保留 HTML 结构），非纯文本堆砌
 - **零依赖部署**：仅需 Node.js + npm install，无数据库、无构建工具
 
 ## 技术栈
@@ -59,12 +59,14 @@ Windows 用户也可双击 `一键启动.bat`（自动检查依赖、停旧实�
 |---|---|---|
 | `PORT` | `3000` | 监听端口 |
 | `EMAIL_KEY` | 内置默认 | AES-256-GCM 密钥（32 字节 hex）。**生产部署务必覆盖**，见下方安全说明 |
-| `TRANSLATE_LLM_URL` | `http://127.0.0.1:31415/v1/chat/completions` | 翻译用的 OpenAI 兼容接口（LM Studio / FreeLLMAPI 等） |
-| `TRANSLATE_LLM_MODEL` | `auto` | 翻译模型名 |
-| `TRANSLATE_ENGINES` | `local-llm,google,mymemory` | 参与聚合的引擎列表（逗号分隔） |
-| `TRANSLATE_FUSE` | `true` | 是否用 LLM 融合多引擎译文为「综合译本」 |
+| `TRANSLATE_LLM_URL` | `http://127.0.0.1:31415/v1/chat/completions` | 翻译用的 OpenAI 兼容接口 |
+| `TRANSLATE_LLM_KEY` | `lm-studio` | 接口密钥（本地网关可任意填） |
+| `TRANSLATE_LLM_MODEL` | `auto` | 翻译模型名（可指定如 `deepseek-chat`） |
 | `TRANSLATE_TARGET` | `简体中文` | 翻译目标语言 |
-| `TRANSLATE_TARGET_CODE` | `zh-CN` | 目标语言代码（Google / MyMemory 用） |
+| `TRANSLATE_MAX_LEN` | `6000` | 单封邮件翻译的最大字符数 |
+| `TRANSLATE_MAX_SEGS` | `80` | 版式渲染时最多翻译的文本节点数 |
+
+> 推荐做法：复制 `.env.example` 为 `.env` 填入配置（`.env` 已在 `.gitignore` 中，密钥不会进仓库）。环境变量优先级高于 `.env`。
 
 ## API
 
@@ -80,7 +82,7 @@ Windows 用户也可双击 `一键启动.bat`（自动检查依赖、停旧实�
 | GET | `/api/messages` | 邮件列表（支持 `accountId`/`isRead`/`isStarred`/`keyword`/`page`/`pageSize`） |
 | GET | `/api/messages/:id` | 邮件详情（自动标记已读） |
 | PATCH | `/api/messages/:id` | 更新已读/星标 |
-| POST | `/api/messages/:id/translate` | 多引擎聚合翻译，返回各引擎译文 + 版式渲染 HTML + 综合译本 |
+| POST | `/api/messages/:id/translate` | 翻译邮件，返回译文文本 + 按原版式渲染的 HTML |
 
 ## 项目结构
 

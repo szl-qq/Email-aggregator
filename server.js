@@ -13,6 +13,22 @@ const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const nodemailer = require('nodemailer');
 
+/* ==================== 本地配置（.env，可选，不入库） ==================== */
+// 项目根目录下的 .env 会被自动加载（已写入 .gitignore，密钥不会进仓库）
+(function loadDotEnv() {
+  try {
+    const f = path.join(__dirname, '.env');
+    if (!fs.existsSync(f)) return;
+    for (const line of fs.readFileSync(f, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (!m) continue;
+      let v = m[2];
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      if (process.env[m[1]] === undefined) process.env[m[1]] = v;
+    }
+  } catch { /* 配置读取失败不影响启动 */ }
+})();
+
 /* ==================== 配置 ==================== */
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = path.join(__dirname, 'data');
@@ -280,13 +296,8 @@ const TRANSLATE_LLM_URL = process.env.TRANSLATE_LLM_URL || 'http://127.0.0.1:314
 const TRANSLATE_LLM_KEY = process.env.TRANSLATE_LLM_KEY || 'lm-studio';
 const TRANSLATE_LLM_MODEL = process.env.TRANSLATE_LLM_MODEL || 'auto';
 const TRANSLATE_TARGET = process.env.TRANSLATE_TARGET || '简体中文';
-const TRANSLATE_TARGET_CODE = process.env.TRANSLATE_TARGET_CODE || 'zh-CN';
-// 参与聚合的引擎（逗号分隔）。可用：local-llm / google / mymemory
-const TRANSLATE_ENGINES = (process.env.TRANSLATE_ENGINES || 'local-llm,google,mymemory')
-  .split(',').map((s) => s.trim()).filter(Boolean);
 const TRANSLATE_MAX_LEN = Number(process.env.TRANSLATE_MAX_LEN || 6000);
 const TRANSLATE_MAX_SEGS = Number(process.env.TRANSLATE_MAX_SEGS || 80);
-const TRANSLATE_FUSE = process.env.TRANSLATE_FUSE !== 'false';
 
 function htmlToText(html) {
   return String(html || '')
@@ -340,71 +351,7 @@ async function llmTranslateSegs(segs) {
   if (!Array.isArray(arr) || arr.length !== segs.length) throw new Error('译文段数不匹配');
   return arr.map((s) => String(s ?? ''));
 }
-async function googleTranslateOne(text) {
-  const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' + TRANSLATE_TARGET_CODE + '&dt=t&q=' + encodeURIComponent(text);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);
-  try {
-    const resp = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    const out = (data[0] || []).map((s) => s[0]).join('');
-    if (!out) throw new Error('空响应');
-    return out;
-  } finally { clearTimeout(timer); }
-}
-async function googleTranslateText(text) {
-  const chunks = [];
-  let cur = '';
-  for (const para of String(text).split(/\n/)) {
-    if (cur && (cur.length + para.length) > 1200) { chunks.push(cur); cur = ''; }
-    cur += para + '\n';
-  }
-  if (cur.trim()) chunks.push(cur);
-  const outs = [];
-  for (const c of chunks.slice(0, 30)) outs.push(await googleTranslateOne(c));
-  return outs.join('\n').trim();
-}
-async function myMemoryTranslateOne(text) {
-  const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=Autodetect|' + TRANSLATE_TARGET_CODE;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
-    const resp = await fetch(url, { signal: controller.signal });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    const out = data.responseData?.translatedText;
-    if (!out) throw new Error('空响应');
-    return out;
-  } finally { clearTimeout(timer); }
-}
-async function myMemoryTranslateText(text) {
-  // MyMemory 单次限长约 500 字符，按行分段请求
-  const chunks = [];
-  let cur = '';
-  for (const para of String(text).split(/\n/)) {
-    if (cur && (cur.length + para.length) > 450) { chunks.push(cur); cur = ''; }
-    cur += para + '\n';
-  }
-  if (cur.trim()) chunks.push(cur);
-  const outs = [];
-  for (const c of chunks.slice(0, 20)) outs.push(await myMemoryTranslateOne(c));
-  return outs.join('\n').trim();
-}
-
-/* ---- 结构保持的 HTML 翻译（逐文本节点，保留原版式） ---- */
-async function mapLimit(items, limit, fn) {
-  const out = new Array(items.length);
-  let idx = 0;
-  const runner = async () => {
-    while (idx < items.length) {
-      const i = idx++;
-      try { out[i] = await fn(items[i]); } catch { out[i] = null; }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, runner));
-  return out;
-}
+/* ---- 结构保持的 HTML 翻译（逐文本节点交给模型，保留原邮件版式） ---- */
 function extractSegments(html) {
   const cleaned = String(html || '')
     .replace(/<!--[\s\S]*?-->/g, '')
@@ -418,33 +365,13 @@ function assembleSegments(parts, segs, translated) {
   const map = new Map(segs.map((s, k) => [s.idx, translated[k]]));
   return parts.map((s, i) => (map.has(i) ? map.get(i) : s)).join('');
 }
-async function translateHtmlWith(kind, html) {
+async function translateHtml(html) {
   const { parts, segs } = extractSegments(html);
   if (!segs.length) throw new Error('正文无文本节点');
   const limited = segs.slice(0, TRANSLATE_MAX_SEGS);
-  const texts = limited.map((s) => s.text);
-  let out;
-  if (kind === 'local-llm') out = await llmTranslateSegs(texts);
-  else if (kind === 'google') out = await mapLimit(texts, 4, googleTranslateOne);
-  else out = await mapLimit(texts, 3, myMemoryTranslateOne);
+  const out = await llmTranslateSegs(limited.map((s) => s.text));
   if (!out || out.some((t) => !t)) throw new Error('部分分段翻译失败');
   return assembleSegments(parts, limited, out);
-}
-
-/* ---- 引擎注册表 ---- */
-const ENGINE_IMPL = {
-  'local-llm': { label: '本地 LLM', text: llmTranslateText, html: (h) => translateHtmlWith('local-llm', h) },
-  google: { label: 'Google', text: googleTranslateText, html: (h) => translateHtmlWith('google', h) },
-  mymemory: { label: 'MyMemory', text: myMemoryTranslateText, html: (h) => translateHtmlWith('mymemory', h) },
-};
-
-/** 综合译本：把多个引擎的候选译文交给 LLM 融合成一份最优译文 */
-async function fusionTranslate(candidates, sourceText) {
-  const listing = candidates.map((c, i) => `【候选${i + 1}｜${c.label || c.engine}】\n${c.text}`).join('\n\n');
-  return llmChat([
-    { role: 'system', content: `你是资深翻译。用户给出同一段原文的多个机器译文候选，请综合其优点，输出一份最准确、通顺、忠实的${TRANSLATE_TARGET}译文。只输出译文本身，不要任何说明。` },
-    { role: 'user', content: `原文：\n${sourceText.slice(0, 3000)}\n\n${listing}` },
-  ]);
 }
 
 /* ==================== Express 应用 ==================== */
@@ -643,7 +570,7 @@ app.patch('/api/messages/:id', (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// 翻译邮件：多引擎聚合（可含 LLM 综合译本）+ 结构保持渲染，文本结果持久化
+// 翻译邮件：单一 AI 模型（OpenAI 兼容接口），返回译文文本 + 按原版式渲染的 HTML
 app.post('/api/messages/:id/translate', async (req, res, next) => {
   try {
     let msg = null, list = null, accountId = null;
@@ -656,64 +583,40 @@ app.post('/api/messages/:id/translate', async (req, res, next) => {
     if (!msg) return res.status(404).json({ message: '邮件不存在' });
 
     const body = req.body || {};
-    const want = (Array.isArray(body.engines) && body.engines.length ? body.engines : TRANSLATE_ENGINES)
-      .filter((n) => ENGINE_IMPL[n]);
-    if (!want.length) return res.status(400).json({ message: '没有可用的翻译引擎' });
-
     const source = (msg.bodyText && msg.bodyText.trim()) ? msg.bodyText : htmlToText(msg.bodyHtml || '');
     if (!source.trim()) return res.status(400).json({ message: '该邮件没有可翻译的正文' });
 
-    // 命中缓存（同目标语言且未请求刷新）
-    if (msg.translations && msg.translationsTarget === TRANSLATE_TARGET && !body.refresh) {
-      const cached = want
-        .map((n) => ({ engine: n, label: ENGINE_IMPL[n].label, ok: !!msg.translations[n], text: msg.translations[n] || '', html: null, cached: true }))
-        .concat(msg.translations.fusion ? [{ engine: 'fusion', label: '综合', ok: true, text: msg.translations.fusion, html: null, cached: true }] : []);
-      return res.json({ target: TRANSLATE_TARGET, cached: true, skipped: false, truncated: false, results: cached });
+    // 命中缓存（同目标语言且未要求刷新）
+    if (msg.translation && msg.translationTarget === TRANSLATE_TARGET && !body.refresh) {
+      return res.json({
+        target: TRANSLATE_TARGET, model: msg.translationModel || TRANSLATE_LLM_MODEL,
+        text: msg.translation, html: null, truncated: !!msg.translationTruncated, cached: true,
+      });
     }
 
     if (isMostlyChinese(source) && !body.force) {
-      return res.json({ target: TRANSLATE_TARGET, skipped: true, message: '邮件正文以中文为主，无需翻译', results: [] });
+      return res.json({ target: TRANSLATE_TARGET, skipped: true, message: '邮件正文以中文为主，无需翻译' });
     }
 
     const truncated = source.length > TRANSLATE_MAX_LEN;
     const srcText = source.slice(0, TRANSLATE_MAX_LEN);
     const srcHtml = (msg.bodyHtml && msg.bodyHtml.trim()) ? msg.bodyHtml : null;
 
-    // 各引擎并行聚合：文本用于面板、HTML 用于按原版式渲染
-    const results = await Promise.all(want.map(async (name) => {
-      const impl = ENGINE_IMPL[name];
-      const t0 = Date.now();
-      try {
-        const text = await impl.text(srcText);
-        let html = null;
-        if (srcHtml) { try { html = await impl.html(srcHtml); } catch { html = null; } }
-        return { engine: name, label: impl.label, ok: true, text, html, ms: Date.now() - t0 };
-      } catch (e) {
-        return { engine: name, label: impl.label, ok: false, error: e.message, html: null, ms: Date.now() - t0 };
-      }
-    }));
+    const t0 = Date.now();
+    // 文本译文与版式渲染译文并行请求，缩短总耗时
+    const [text, html] = await Promise.all([
+      llmTranslateText(srcText),
+      srcHtml ? translateHtml(srcHtml).catch(() => null) : Promise.resolve(null),
+    ]);
 
-    // 综合译本：≥2 个引擎成功时由本地 LLM 融合
-    const okList = results.filter((r) => r.ok && r.text);
-    if (TRANSLATE_FUSE && okList.length >= 2) {
-      const t0 = Date.now();
-      try {
-        const text = await fusionTranslate(okList, srcText);
-        results.unshift({ engine: 'fusion', label: '综合', ok: true, text, html: null, fusion: true, ms: Date.now() - t0 });
-      } catch (e) {
-        results.push({ engine: 'fusion', label: '综合', ok: false, error: e.message, html: null, ms: Date.now() - t0 });
-      }
-    }
-
-    // 持久化译文文本（HTML 体积大，不落盘；前端在会话内缓存）
-    msg.translations = {};
-    for (const r of results) if (r.ok && !r.fusion) msg.translations[r.engine] = r.text;
-    if (results.find((r) => r.fusion && r.ok)) msg.translations.fusion = results.find((r) => r.fusion && r.ok).text;
-    msg.translationsTarget = TRANSLATE_TARGET;
+    msg.translation = text;
+    msg.translationTarget = TRANSLATE_TARGET;
+    msg.translationTruncated = truncated;
+    msg.translationModel = TRANSLATE_LLM_MODEL;
     msg.updatedAt = new Date().toISOString();
     writeMessages(accountId, list);
 
-    res.json({ target: TRANSLATE_TARGET, truncated, results });
+    res.json({ target: TRANSLATE_TARGET, model: TRANSLATE_LLM_MODEL, text, html, truncated, ms: Date.now() - t0 });
   } catch (e) { next(e); }
 });
 
